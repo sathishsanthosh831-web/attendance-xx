@@ -1,0 +1,217 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>EduTrack — Student Attendance Management System</title>
+  <meta name="description" content="EduTrack is a professional student attendance management system for colleges. Login as student or staff to manage attendance records." />
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" />
+  <link rel="stylesheet" href="css/style.css" />
+  <style>
+    body { background: #0f172a; }
+    .login-form-panel { background: #fff; }
+    [data-theme="dark"] .login-form-panel { background: #1e293b; }
+    .login-tab-wrap { position: fixed; top: 20px; right: 20px; z-index: 10; }
+    .login-particles span:nth-child(1)  { width:8px;  height:8px;  left:10%; animation-duration:12s; animation-delay:0s; }
+    .login-particles span:nth-child(2)  { width:14px; height:14px; left:25%; animation-duration:16s; animation-delay:2s; }
+    .login-particles span:nth-child(3)  { width:6px;  height:6px;  left:45%; animation-duration:10s; animation-delay:1s; }
+    .login-particles span:nth-child(4)  { width:10px; height:10px; left:65%; animation-duration:14s; animation-delay:3s; }
+    .login-particles span:nth-child(5)  { width:18px; height:18px; left:80%; animation-duration:18s; animation-delay:0.5s; }
+    .login-particles span:nth-child(6)  { width:6px;  height:6px;  left:35%; animation-duration:11s; animation-delay:4s; }
+    .login-particles span:nth-child(7)  { width:12px; height:12px; left:55%; animation-duration:15s; animation-delay:1.5s; }
+    .spinner { width:18px; height:18px; border:2px solid rgba(255,255,255,0.4); border-top-color:#fff; border-radius:50%; animation:spin 0.7s linear infinite; display:inline-block; }
+    @keyframes spin { to { transform:rotate(360deg); } }
+    .pwd-toggle { position:absolute; right:12px; top:50%; transform:translateY(-50%); cursor:pointer; color:var(--text-muted); }
+  </style>
+</head>
+<body>
+  <!-- Theme toggle -->
+  <div class="login-tab-wrap">
+    <button class="theme-toggle" id="themeToggle" title="Toggle theme"><i class="fas fa-moon"></i></button>
+  </div>
+
+  <!-- Floating particles -->
+  <div class="login-particles">
+    <span></span><span></span><span></span><span></span>
+    <span></span><span></span><span></span>
+  </div>
+
+  <div class="login-page">
+    <div class="login-container fade-in-up">
+
+      <!-- Hero Panel -->
+      <div class="login-hero">
+        <div class="login-hero-logo">
+          <!-- Inline SVG Logo -->
+          <svg width="52" height="52" viewBox="0 0 52 52" fill="none" xmlns="http://www.w3.org/2000/svg" style="border-radius:10px;background:rgba(255,255,255,0.15);padding:6px">
+            <path d="M26 8L44 17V26C44 35.4 36 43.2 26 46C16 43.2 8 35.4 8 26V17L26 8Z" fill="rgba(255,255,255,0.9)"/>
+            <path d="M26 14L38 20.5V26C38 32.6 32.8 38.6 26 40.8C19.2 38.6 14 32.6 14 26V20.5L26 14Z" fill="#4f46e5"/>
+            <path d="M19 24H33M22 24V32M30 24V32" stroke="white" stroke-width="2" stroke-linecap="round"/>
+            <path d="M21 22H31L26 18L21 22Z" fill="white"/>
+          </svg>
+          <div>
+            <h2>EduTrack</h2>
+            <p>Attendance Management System</p>
+          </div>
+        </div>
+        <h1>Smart Attendance<br/>Tracking System</h1>
+        <p>A comprehensive platform to manage student attendance efficiently across departments and subjects.</p>
+        <div class="login-hero-features">
+          <div class="login-hero-feature"><i class="fas fa-chart-pie"></i><span>Real-time attendance analytics</span></div>
+          <div class="login-hero-feature"><i class="fas fa-bell"></i><span>Low attendance alerts (below 75%)</span></div>
+          <div class="login-hero-feature"><i class="fas fa-file-export"></i><span>Export reports as PDF or CSV</span></div>
+          <div class="login-hero-feature"><i class="fas fa-shield-alt"></i><span>Secure authentication system</span></div>
+        </div>
+      </div>
+
+      <!-- Form Panel -->
+      <div class="login-form-panel">
+        <h2>Welcome Back</h2>
+        <p>Sign in to your account to continue</p>
+
+        <!-- Tabs -->
+        <div class="tabs mb-4" id="loginTabs" style="margin-bottom:24px">
+          <button class="tab-btn active" data-tab="studentTab" id="tabStudent" onclick="switchTab('student')">
+            <i class="fas fa-user-graduate"></i> Student
+          </button>
+          <button class="tab-btn" data-tab="staffTab" id="tabStaff" onclick="switchTab('staff')">
+            <i class="fas fa-chalkboard-teacher"></i> Staff
+          </button>
+        </div>
+
+        <!-- Student Login -->
+        <div id="studentTab" class="tab-content active">
+          <form id="studentLoginForm" onsubmit="handleLogin(event,'student')">
+            <div class="form-group">
+              <label class="form-label">Username</label>
+              <div class="input-group">
+                <i class="fas fa-user input-icon"></i>
+                <input type="text" id="studentUsername" class="form-control" placeholder="Enter your username" autocomplete="username" required />
+              </div>
+              <div class="form-error" id="stuUsernameErr"></div>
+            </div>
+            <div class="form-group">
+              <label class="form-label">Password</label>
+              <div class="input-group" style="position:relative">
+                <i class="fas fa-lock input-icon"></i>
+                <input type="password" id="studentPassword" class="form-control" placeholder="Enter your password" autocomplete="current-password" required />
+                <span class="pwd-toggle" onclick="togglePwd('studentPassword',this)"><i class="fas fa-eye"></i></span>
+              </div>
+              <div class="form-error" id="stuPassErr"></div>
+            </div>
+            <div class="form-error" id="stuLoginErr" style="margin-bottom:12px;font-size:0.875rem"></div>
+            <button type="submit" class="btn btn-primary btn-block btn-lg" id="stuLoginBtn">
+              <i class="fas fa-sign-in-alt"></i> Login as Student
+            </button>
+          </form>
+          <div class="text-center mt-4">
+            <span class="text-muted text-sm">Don't have an account? </span>
+            <a href="register.html?type=student" style="font-weight:600">Create Account</a>
+          </div>
+          <div class="mt-3 text-center" style="padding:10px;background:rgba(79,70,229,0.06);border-radius:8px;font-size:0.78rem">
+            <span class="text-muted">Demo: </span><strong>student</strong> / <strong>student123</strong>
+          </div>
+        </div>
+
+        <!-- Staff Login -->
+        <div id="staffTab" class="tab-content">
+          <form id="staffLoginForm" onsubmit="handleLogin(event,'staff')">
+            <div class="form-group">
+              <label class="form-label">Username</label>
+              <div class="input-group">
+                <i class="fas fa-id-card input-icon"></i>
+                <input type="text" id="staffUsername" class="form-control" placeholder="Enter staff username" autocomplete="username" required />
+              </div>
+            </div>
+            <div class="form-group">
+              <label class="form-label">Password</label>
+              <div class="input-group" style="position:relative">
+                <i class="fas fa-lock input-icon"></i>
+                <input type="password" id="staffPassword" class="form-control" placeholder="Enter your password" autocomplete="current-password" required />
+                <span class="pwd-toggle" onclick="togglePwd('staffPassword',this)"><i class="fas fa-eye"></i></span>
+              </div>
+            </div>
+            <div class="form-error" id="staffLoginErr" style="margin-bottom:12px;font-size:0.875rem"></div>
+            <button type="submit" class="btn btn-primary btn-block btn-lg" id="staffLoginBtn">
+              <i class="fas fa-sign-in-alt"></i> Login as Staff
+            </button>
+          </form>
+          <div class="text-center mt-4">
+            <span class="text-muted text-sm">New staff member? </span>
+            <a href="register.html?type=staff" style="font-weight:600">Create Account</a>
+          </div>
+          <div class="mt-3 text-center" style="padding:10px;background:rgba(79,70,229,0.06);border-radius:8px;font-size:0.78rem">
+            <span class="text-muted">Demo: </span><strong>staff</strong> / <strong>staff123</strong>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script src="js/data.js"></script>
+  <script src="js/utils.js"></script>
+  <script>
+    // Init
+    Theme.init();
+    Toast.init();
+
+    // If already logged in, redirect
+    const session = DB.getSession();
+    if (session) {
+      window.location.href = session.type === 'staff' ? 'staff.html' : 'student.html';
+    }
+
+    function switchTab(type) {
+      ['student','staff'].forEach(t => {
+        document.getElementById(`${t}Tab`).classList.toggle('active', t === type);
+        document.getElementById(`tab${t.charAt(0).toUpperCase()+t.slice(1)}`).classList.toggle('active', t === type);
+      });
+    }
+
+    function togglePwd(id, el) {
+      const input = document.getElementById(id);
+      const icon = el.querySelector('i');
+      if (input.type === 'password') {
+        input.type = 'text'; icon.className = 'fas fa-eye-slash';
+      } else {
+        input.type = 'password'; icon.className = 'fas fa-eye';
+      }
+    }
+
+    async function handleLogin(e, type) {
+      e.preventDefault();
+      const btn = document.getElementById(type === 'student' ? 'stuLoginBtn' : 'staffLoginBtn');
+      const errEl = document.getElementById(type === 'student' ? 'stuLoginErr' : 'staffLoginErr');
+      const username = document.getElementById(type === 'student' ? 'studentUsername' : 'staffUsername').value.trim();
+      const password = document.getElementById(type === 'student' ? 'studentPassword' : 'staffPassword').value;
+
+      // Clear errors
+      errEl.style.display = 'none'; errEl.textContent = '';
+
+      // Loading state
+      btn.disabled = true;
+      btn.innerHTML = '<span class="spinner"></span> Signing in...';
+
+      // Simulate async (300ms)
+      await new Promise(r => setTimeout(r, 400));
+
+      const user = DB.loginUser(username, password, type);
+      if (!user) {
+        errEl.textContent = 'Invalid username or password. Please try again.';
+        errEl.style.display = 'block'; errEl.classList.add('show');
+        btn.disabled = false;
+        btn.innerHTML = type === 'student'
+          ? '<i class="fas fa-sign-in-alt"></i> Login as Student'
+          : '<i class="fas fa-sign-in-alt"></i> Login as Staff';
+        return;
+      }
+
+      DB.setSession(user);
+      Toast.success('Login Successful', `Welcome back, ${user.name}!`);
+      setTimeout(() => {
+        window.location.href = type === 'staff' ? 'staff.html' : 'student.html';
+      }, 600);
+    }
+  </script>
+</body>
+</html>

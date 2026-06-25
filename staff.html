@@ -1,0 +1,869 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Staff Dashboard — EduTrack</title>
+  <meta name="description" content="Staff attendance management dashboard — mark, edit and view student attendance records." />
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" />
+  <link rel="stylesheet" href="css/style.css" />
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.2/dist/chart.umd.min.js"></script>
+  <style>
+    .filter-toolbar { background:var(--surface); border:1px solid var(--border); border-radius:var(--radius); padding:20px 24px; margin-bottom:24px; }
+    .mark-count { font-size:0.78rem; color:var(--text-muted); margin-top:8px; }
+    .att-mark-grid { display:flex; flex-direction:column; gap:10px; }
+    .mark-row .att-actions { margin-left:auto; }
+    .status-chip { font-size:0.72rem; font-weight:700; padding:3px 10px; border-radius:99px; text-transform:uppercase; letter-spacing:0.04em; }
+    .chip-present { background:rgba(16,185,129,0.15); color:#059669; }
+    .chip-absent  { background:rgba(239,68,68,0.12); color:#dc2626; }
+    .chip-none    { background:rgba(100,116,139,0.12); color:#64748b; }
+    .bulk-actions { display:flex; gap:10px; flex-wrap:wrap; }
+    .report-summary-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(160px,1fr)); gap:16px; margin-bottom:24px; }
+    .report-mini-card { background:var(--surface-2); border:1px solid var(--border); border-radius:var(--radius-sm); padding:16px; text-align:center; }
+    .report-mini-card .val { font-size:1.6rem; font-weight:800; font-family:'Poppins',sans-serif; }
+    .pagination { display:flex; align-items:center; gap:8px; flex-wrap:wrap; }
+    .page-btn { width:32px; height:32px; border-radius:6px; border:1px solid var(--border); background:transparent; cursor:pointer; color:var(--text-muted); font-size:0.8rem; display:flex; align-items:center; justify-content:center; transition:var(--transition); }
+    .page-btn.active { background:var(--primary); color:#fff; border-color:var(--primary); }
+    .page-btn:hover:not(.active) { border-color:var(--primary); color:var(--primary); }
+    @media print {
+      .sidebar,.topbar,.filter-toolbar,.bulk-actions,.att-actions,.btn,.pagination { display:none!important; }
+      .main-content { margin-left:0!important; }
+    }
+  </style>
+</head>
+<body>
+  <div class="app-layout">
+
+    <!-- Sidebar Overlay -->
+    <div class="sidebar-overlay" id="sidebarOverlay"></div>
+
+    <!-- Sidebar -->
+    <aside class="sidebar" id="sidebar">
+      <div class="sidebar-brand">
+        <svg width="38" height="38" viewBox="0 0 52 52" fill="none" xmlns="http://www.w3.org/2000/svg" style="border-radius:8px;background:rgba(255,255,255,0.1);padding:5px;flex-shrink:0">
+          <path d="M26 8L44 17V26C44 35.4 36 43.2 26 46C16 43.2 8 35.4 8 26V17L26 8Z" fill="rgba(255,255,255,0.9)"/>
+          <path d="M26 14L38 20.5V26C38 32.6 32.8 38.6 26 40.8C19.2 38.6 14 32.6 14 26V20.5L26 14Z" fill="#4f46e5"/>
+          <path d="M19 24H33M22 24V32M30 24V32" stroke="white" stroke-width="2" stroke-linecap="round"/>
+          <path d="M21 22H31L26 18L21 22Z" fill="white"/>
+        </svg>
+        <div class="sidebar-brand-text">
+          <h3>EduTrack</h3>
+          <p>Staff Portal</p>
+        </div>
+      </div>
+
+      <nav class="sidebar-nav">
+        <div class="nav-section">
+          <div class="nav-section-title">Main</div>
+          <div class="nav-item active" data-page="dashboard"><i class="fas fa-th-large"></i><span>Dashboard</span></div>
+          <div class="nav-item" data-page="markattendance"><i class="fas fa-calendar-check"></i><span>Mark Attendance</span></div>
+          <div class="nav-item" data-page="students"><i class="fas fa-users"></i><span>Student List</span></div>
+          <div class="nav-item" data-page="reports"><i class="fas fa-chart-bar"></i><span>Reports</span></div>
+        </div>
+        <div class="nav-section">
+          <div class="nav-section-title">Account</div>
+          <div class="nav-item" data-page="profile"><i class="fas fa-user-circle"></i><span>My Profile</span></div>
+        </div>
+      </nav>
+
+      <div class="sidebar-footer">
+        <div class="sidebar-user" onclick="logout()">
+          <div class="sidebar-avatar" id="sidebarAvatar">S</div>
+          <div class="sidebar-user-info">
+            <h5 id="sidebarName">Staff Name</h5>
+            <p>Staff Member</p>
+          </div>
+          <i class="fas fa-sign-out-alt" style="color:var(--sidebar-text);font-size:0.875rem"></i>
+        </div>
+      </div>
+    </aside>
+
+    <!-- Main Content -->
+    <main class="main-content">
+      <!-- Topbar -->
+      <header class="topbar">
+        <div class="topbar-left">
+          <button class="hamburger" id="hamburger"><i class="fas fa-bars"></i></button>
+          <span class="topbar-title" id="topbarTitle">Dashboard</span>
+        </div>
+        <div class="topbar-right">
+          <div class="clock-widget" id="clockWidget"><strong>Loading...</strong></div>
+          <button class="theme-toggle" id="themeToggle" title="Toggle theme"><i class="fas fa-moon"></i></button>
+        </div>
+      </header>
+
+      <!-- ═══════════════════ STAFF DASHBOARD ═══════════════════ -->
+      <div class="page-section page-content" id="section-dashboard">
+        <div class="page-header">
+          <h1 id="staffWelcome">Welcome, Staff! 👋</h1>
+          <p id="staffDept">Department Overview</p>
+        </div>
+
+        <div class="stat-grid fade-in-up">
+          <div class="stat-card" style="--card-color:#4f46e5">
+            <div class="stat-icon"><i class="fas fa-users"></i></div>
+            <div class="stat-value" id="dashTotalStudents">—</div>
+            <div class="stat-label">Total Students</div>
+          </div>
+          <div class="stat-card" style="--card-color:#10b981">
+            <div class="stat-icon"><i class="fas fa-check-circle"></i></div>
+            <div class="stat-value" id="dashTodayPresent">—</div>
+            <div class="stat-label">Present Today</div>
+          </div>
+          <div class="stat-card" style="--card-color:#ef4444">
+            <div class="stat-icon"><i class="fas fa-times-circle"></i></div>
+            <div class="stat-value" id="dashTodayAbsent">—</div>
+            <div class="stat-label">Absent Today</div>
+          </div>
+          <div class="stat-card" style="--card-color:#f59e0b">
+            <div class="stat-icon"><i class="fas fa-exclamation-triangle"></i></div>
+            <div class="stat-value" id="dashLowAtt">—</div>
+            <div class="stat-label">Low Attendance (&lt;75%)</div>
+          </div>
+        </div>
+
+        <div class="content-grid fade-in-up delay-1">
+          <div class="card">
+            <div class="card-header"><h3>Today's Summary</h3><span class="badge badge-info" id="todayDate">—</span></div>
+            <div class="card-body"><canvas id="dashPieChart" height="200"></canvas></div>
+          </div>
+          <div class="card">
+            <div class="card-header"><h3>Monthly Attendance Rate</h3></div>
+            <div class="card-body"><canvas id="dashLineChart" height="200"></canvas></div>
+          </div>
+        </div>
+
+        <!-- Recent Activity -->
+        <div class="card fade-in-up delay-2">
+          <div class="card-header"><h3>Recent Attendance Entries</h3></div>
+          <div class="card-body" style="padding:0">
+            <div class="table-wrapper">
+              <table class="table">
+                <thead><tr><th>Student</th><th>Subject</th><th>Date</th><th>Time</th><th>Status</th></tr></thead>
+                <tbody id="recentActivity"></tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ═══════════════════ MARK ATTENDANCE ═══════════════════ -->
+      <div class="page-section page-content hidden" id="section-markattendance">
+        <div class="page-header">
+          <h1>Mark Attendance</h1>
+          <p>Select subject and date, then mark each student's attendance</p>
+        </div>
+
+        <!-- Filter Toolbar -->
+        <div class="filter-toolbar">
+          <div class="filter-row">
+            <div class="form-group">
+              <label class="form-label">Department</label>
+              <select class="form-control" id="markDept" onchange="refreshMarkList()">
+                <option value="">All Departments</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label class="form-label">Subject *</label>
+              <select class="form-control" id="markSubject" onchange="refreshMarkList()">
+                <option value="">Select subject</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label class="form-label">Date</label>
+              <input type="date" class="form-control" id="markDate" onchange="refreshMarkList()" />
+            </div>
+          </div>
+          <div class="mark-count" id="markCount"></div>
+        </div>
+
+        <!-- Search -->
+        <div class="search-bar mb-4" style="max-width:340px">
+          <i class="fas fa-search"></i>
+          <input type="text" class="form-control" id="markSearch" placeholder="Search student by name or reg no..." oninput="filterMarkList()" />
+        </div>
+
+        <!-- Bulk Actions -->
+        <div class="bulk-actions mb-4" id="bulkActions" style="display:none">
+          <button class="btn btn-success btn-sm" onclick="markAll('present')"><i class="fas fa-check-double"></i> Mark All Present</button>
+          <button class="btn btn-danger btn-sm" onclick="markAll('absent')"><i class="fas fa-times-circle"></i> Mark All Absent</button>
+        </div>
+
+        <!-- Student Mark Grid -->
+        <div class="att-mark-grid" id="markGrid">
+          <div class="card"><div class="empty-state"><i class="fas fa-filter"></i><h3>Select a subject and date</h3><p>Choose filters above to load students.</p></div></div>
+        </div>
+      </div>
+
+      <!-- ═══════════════════ STUDENT LIST ═══════════════════ -->
+      <div class="page-section page-content hidden" id="section-students">
+        <div class="page-header flex justify-between items-center" style="flex-wrap:wrap;gap:12px">
+          <div><h1>Student List</h1><p>All registered students</p></div>
+          <div class="flex gap-2">
+            <button class="btn btn-outline btn-sm" onclick="exportStudentCSV()"><i class="fas fa-file-csv"></i> Export CSV</button>
+          </div>
+        </div>
+
+        <div class="filter-toolbar">
+          <div class="filter-row">
+            <div class="form-group">
+              <label class="form-label">Filter by Department</label>
+              <select class="form-control" id="studentDeptFilter" onchange="renderStudentList()">
+                <option value="">All Departments</option>
+              </select>
+            </div>
+            <div class="form-group" style="flex:2">
+              <label class="form-label">Search Student</label>
+              <div class="search-bar">
+                <i class="fas fa-search"></i>
+                <input type="text" class="form-control" id="studentSearch" placeholder="Name, Register No., Department..." oninput="renderStudentList()" />
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-body" style="padding:0">
+            <div class="table-wrapper">
+              <table class="table">
+                <thead><tr><th>#</th><th>Student</th><th>Reg No.</th><th>Department</th><th>Year</th><th>Attendance</th><th>Action</th></tr></thead>
+                <tbody id="studentListBody"></tbody>
+              </table>
+            </div>
+          </div>
+          <div class="card-footer flex justify-between items-center" style="flex-wrap:wrap;gap:12px">
+            <span class="text-muted text-sm" id="studentListInfo"></span>
+            <div class="pagination" id="studentPagination"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ═══════════════════ REPORTS ═══════════════════ -->
+      <div class="page-section page-content hidden" id="section-reports">
+        <div class="page-header flex justify-between items-center" style="flex-wrap:wrap;gap:12px">
+          <div><h1>Attendance Reports</h1><p>View and export attendance data</p></div>
+          <div class="flex gap-2">
+            <button class="btn btn-outline btn-sm" onclick="exportReportCSV()"><i class="fas fa-file-csv"></i> Export CSV</button>
+            <button class="btn btn-outline btn-sm" onclick="exportPDF()"><i class="fas fa-print"></i> Print</button>
+          </div>
+        </div>
+
+        <div class="filter-toolbar">
+          <div class="filter-row">
+            <div class="form-group">
+              <label class="form-label">Department</label>
+              <select class="form-control" id="repDept" onchange="renderReport()"><option value="">All</option></select>
+            </div>
+            <div class="form-group">
+              <label class="form-label">Subject</label>
+              <select class="form-control" id="repSubject" onchange="renderReport()"><option value="">All</option></select>
+            </div>
+            <div class="form-group">
+              <label class="form-label">Status</label>
+              <select class="form-control" id="repStatus" onchange="renderReport()">
+                <option value="">All</option><option value="present">Present</option><option value="absent">Absent</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label class="form-label">From Date</label>
+              <input type="date" class="form-control" id="repFrom" onchange="renderReport()" />
+            </div>
+            <div class="form-group">
+              <label class="form-label">To Date</label>
+              <input type="date" class="form-control" id="repTo" onchange="renderReport()" />
+            </div>
+          </div>
+        </div>
+
+        <div class="report-summary-grid" id="reportSummaryGrid"></div>
+
+        <div class="card">
+          <div class="card-body" style="padding:0">
+            <div class="table-wrapper">
+              <table class="table">
+                <thead><tr><th>#</th><th>Student</th><th>Reg No.</th><th>Department</th><th>Subject</th><th>Date</th><th>Time</th><th>Status</th><th>Actions</th></tr></thead>
+                <tbody id="reportTableBody"></tbody>
+              </table>
+            </div>
+          </div>
+          <div class="card-footer flex justify-between items-center" style="flex-wrap:wrap;gap:12px">
+            <span class="text-muted text-sm" id="reportInfo"></span>
+            <div class="pagination" id="reportPagination"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ═══════════════════ PROFILE ═══════════════════ -->
+      <div class="page-section page-content hidden" id="section-profile">
+        <div class="page-header"><h1>My Profile</h1><p>Your staff account details</p></div>
+        <div class="profile-header">
+          <div class="profile-avatar-lg" id="staffProfileAvatar">S</div>
+          <div class="profile-info">
+            <h2 id="staffProfileName">Staff Name</h2>
+            <p id="staffProfileDept">Department</p>
+            <div class="profile-badge">Staff Member</div>
+          </div>
+        </div>
+        <div class="content-grid">
+          <div class="card">
+            <div class="card-header"><h3>Account Details</h3></div>
+            <div class="card-body">
+              <table class="table">
+                <tbody>
+                  <tr><td class="text-muted text-sm" style="width:40%">Full Name</td><td id="spName" class="font-semibold">—</td></tr>
+                  <tr><td class="text-muted text-sm">Staff ID</td><td id="spStaffId" class="font-semibold">—</td></tr>
+                  <tr><td class="text-muted text-sm">Department</td><td id="spDept" class="font-semibold">—</td></tr>
+                  <tr><td class="text-muted text-sm">Username</td><td id="spUsername" class="font-semibold">—</td></tr>
+                  <tr><td class="text-muted text-sm">Member Since</td><td id="spJoined" class="font-semibold">—</td></tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+          <div class="card">
+            <div class="card-header"><h3>Subjects Assigned</h3></div>
+            <div class="card-body" id="staffSubjectList"></div>
+          </div>
+        </div>
+      </div>
+    </main>
+  </div>
+
+  <!-- Edit Modal -->
+  <div class="modal-overlay hidden" id="editModal">
+    <div class="modal">
+      <div class="modal-header">
+        <h3>Edit Attendance Record</h3>
+        <button class="modal-close" onclick="Modal.close('editModal')">&times;</button>
+      </div>
+      <div class="modal-body">
+        <p class="mb-4">Updating attendance for: <strong id="editStudentName">—</strong></p>
+        <div class="form-group">
+          <label class="form-label">Date</label>
+          <input type="text" class="form-control" id="editDate" readonly />
+        </div>
+        <div class="form-group">
+          <label class="form-label">Subject</label>
+          <input type="text" class="form-control" id="editSubject" readonly />
+        </div>
+        <div class="form-group">
+          <label class="form-label">Status</label>
+          <select class="form-control" id="editStatus">
+            <option value="present">Present</option>
+            <option value="absent">Absent</option>
+          </select>
+        </div>
+        <input type="hidden" id="editRecordId" />
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-outline" onclick="Modal.close('editModal')">Cancel</button>
+        <button class="btn btn-primary" onclick="saveEdit()"><i class="fas fa-save"></i> Save Changes</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Student Detail Modal -->
+  <div class="modal-overlay hidden" id="studentDetailModal">
+    <div class="modal" style="max-width:680px">
+      <div class="modal-header">
+        <h3 id="detailStudentTitle">Student Details</h3>
+        <button class="modal-close" onclick="Modal.close('studentDetailModal')">&times;</button>
+      </div>
+      <div class="modal-body" id="studentDetailBody"></div>
+    </div>
+  </div>
+
+  <script src="js/data.js"></script>
+  <script src="js/utils.js"></script>
+  <script>
+    // Auth
+    const user = requireAuth('staff');
+    let dashPieChartInst = null;
+    let dashLineChartInst = null;
+
+    // Page state
+    let studentPage = 1; const PAGE_SIZE = 10;
+    let reportPage  = 1;
+    let allStudents = [];
+    let allReportRecords = [];
+
+    // Init
+    Theme.init();
+    Toast.init();
+    Sidebar.init();
+    Clock.start(document.getElementById('clockWidget'));
+    initSidebarNav('dashboard');
+
+    // Sidebar user
+    document.getElementById('sidebarAvatar').textContent = initials(user.name);
+    document.getElementById('sidebarName').textContent = user.name;
+
+    // Bootstrap
+    populateFilters();
+    loadDashboard();
+    renderStudentList();
+    renderReport();
+    loadProfile();
+
+    // ── Populate Filters ──────────────────────────────
+    function populateFilters() {
+      const departments = [...new Set(DB.getStudents().map(s => s.dept))].sort();
+      const subjects = user.subjects || [];
+
+      // Mark Attendance filters
+      const markDeptEl = document.getElementById('markDept');
+      departments.forEach(d => markDeptEl.innerHTML += `<option value="${d}">${d}</option>`);
+
+      const markSubjectEl = document.getElementById('markSubject');
+      subjects.forEach(s => markSubjectEl.innerHTML += `<option value="${s}">${s}</option>`);
+
+      // Set today's date
+      document.getElementById('markDate').value = todayStr();
+
+      // Student list dept filter
+      const stuDeptEl = document.getElementById('studentDeptFilter');
+      departments.forEach(d => stuDeptEl.innerHTML += `<option value="${d}">${d}</option>`);
+
+      // Report filters
+      const repDeptEl = document.getElementById('repDept');
+      departments.forEach(d => repDeptEl.innerHTML += `<option value="${d}">${d}</option>`);
+
+      const repSubjectEl = document.getElementById('repSubject');
+      const allSubjects = [...new Set(DB.getAttendance().map(r => r.subject))].sort();
+      allSubjects.forEach(s => repSubjectEl.innerHTML += `<option value="${s}">${s}</option>`);
+
+      // Set default date range (last 30 days)
+      const today = new Date();
+      const from = new Date(today); from.setDate(today.getDate() - 30);
+      document.getElementById('repTo').value = todayStr();
+      document.getElementById('repFrom').value = from.toISOString().split('T')[0];
+    }
+
+    // ── Dashboard ─────────────────────────────────────
+    function loadDashboard() {
+      document.getElementById('staffWelcome').textContent = `Welcome, ${user.name.split(' ')[0]}! 👋`;
+      document.getElementById('staffDept').textContent = `${user.dept} · Staff ID: ${user.staffId || 'N/A'}`;
+
+      const students = DB.getStudents();
+      const today = todayStr();
+      const todayRecords = DB.getAttendance().filter(r => r.date === today);
+      const todayPresent = todayRecords.filter(r => r.status === 'present').length;
+      const todayAbsent  = todayRecords.filter(r => r.status === 'absent').length;
+
+      // Low att count
+      let lowCount = 0;
+      students.forEach(s => {
+        const st = DB.computeStats(s.id);
+        if (st.overall.total > 0 && st.overall.pct < 75) lowCount++;
+      });
+
+      document.getElementById('dashTotalStudents').textContent = students.length;
+      document.getElementById('dashTodayPresent').textContent = todayPresent;
+      document.getElementById('dashTodayAbsent').textContent  = todayAbsent;
+      document.getElementById('dashLowAtt').textContent        = lowCount;
+      document.getElementById('todayDate').textContent = new Date().toLocaleDateString('en-IN', { day:'2-digit', month:'short' });
+
+      // Pie chart
+      const isDark = Theme.get() === 'dark';
+      const gridColor = isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.06)';
+      const textColor = isDark ? '#94a3b8' : '#64748b';
+
+      if (dashPieChartInst) dashPieChartInst.destroy();
+      const pCtx = document.getElementById('dashPieChart').getContext('2d');
+      dashPieChartInst = new Chart(pCtx, {
+        type: 'doughnut',
+        data: {
+          labels: ['Present', 'Absent', 'Not Marked'],
+          datasets: [{ data: [todayPresent, todayAbsent, Math.max(0, students.length - todayPresent - todayAbsent)],
+            backgroundColor: ['#10b981','#ef4444','#94a3b8'],
+            borderWidth: 0, borderRadius: 4 }]
+        },
+        options: { responsive: true, maintainAspectRatio: false, cutout: '65%',
+          plugins: { legend: { position:'bottom', labels: { color: textColor, padding: 16, usePointStyle:true } } } }
+      });
+
+      // Line chart — last 14 days attendance %
+      const labels = [], dataPoints = [];
+      for (let d = 13; d >= 0; d--) {
+        const dt = new Date(); dt.setDate(dt.getDate() - d);
+        if (dt.getDay() === 0 || dt.getDay() === 6) continue;
+        const dateStr = dt.toISOString().split('T')[0];
+        const recs = DB.getAttendance().filter(r => r.date === dateStr);
+        const pct = recs.length ? Math.round(recs.filter(r => r.status === 'present').length / recs.length * 100) : null;
+        labels.push(dt.toLocaleDateString('en-IN', { day:'2-digit', month:'short' }));
+        dataPoints.push(pct);
+      }
+
+      if (dashLineChartInst) dashLineChartInst.destroy();
+      const lCtx = document.getElementById('dashLineChart').getContext('2d');
+      dashLineChartInst = new Chart(lCtx, {
+        type: 'line',
+        data: {
+          labels,
+          datasets: [{ label: 'Attendance %', data: dataPoints,
+            borderColor: '#4f46e5', backgroundColor: 'rgba(79,70,229,0.1)',
+            fill: true, tension: 0.4, pointRadius: 4, pointBackgroundColor: '#4f46e5' }]
+        },
+        options: { responsive: true, maintainAspectRatio: false,
+          plugins: { legend: { display: false } },
+          scales: {
+            y: { beginAtZero: true, max: 100, grid: { color: gridColor }, ticks: { color: textColor, callback: v => v+'%' } },
+            x: { grid: { display: false }, ticks: { color: textColor } }
+          }
+        }
+      });
+
+      // Recent activity
+      const recent = DB.getAttendance().sort((a,b) => b.createdAt.localeCompare(a.createdAt)).slice(0, 8);
+      const tbody = document.getElementById('recentActivity');
+      tbody.innerHTML = recent.length === 0
+        ? `<tr><td colspan="5"><div class="empty-state" style="padding:30px"><i class="fas fa-calendar-times"></i><h3>No records yet</h3></div></td></tr>`
+        : recent.map(r => `
+          <tr>
+            <td><div class="flex items-center gap-2"><div class="avatar">${initials(r.studentName)}</div><span class="font-semibold">${r.studentName}</span></div></td>
+            <td class="text-sm">${r.subject}</td>
+            <td class="text-muted text-sm">${formatDate(r.date)}</td>
+            <td class="text-muted text-sm">${r.time}</td>
+            <td><span class="badge ${r.status === 'present' ? 'badge-success' : 'badge-danger'}">${r.status}</span></td>
+          </tr>`).join('');
+    }
+
+    // ── Mark Attendance ───────────────────────────────
+    let _markStudents = [];
+
+    function refreshMarkList() {
+      const dept    = document.getElementById('markDept').value;
+      const subject = document.getElementById('markSubject').value;
+      const date    = document.getElementById('markDate').value;
+
+      if (!subject) {
+        document.getElementById('markGrid').innerHTML = `<div class="card"><div class="empty-state"><i class="fas fa-filter"></i><h3>Select a subject</h3><p>Choose a subject to load students.</p></div></div>`;
+        document.getElementById('bulkActions').style.display = 'none';
+        document.getElementById('markCount').textContent = '';
+        return;
+      }
+
+      let students = DB.getStudents();
+      if (dept) students = students.filter(s => s.dept === dept);
+
+      _markStudents = students;
+      document.getElementById('markCount').textContent = `${students.length} student(s) loaded`;
+      document.getElementById('bulkActions').style.display = students.length ? 'flex' : 'none';
+      renderMarkGrid(students, subject, date);
+    }
+
+    function filterMarkList() {
+      const q = document.getElementById('markSearch').value.toLowerCase();
+      const filtered = _markStudents.filter(s =>
+        s.name.toLowerCase().includes(q) || (s.regNo || '').toLowerCase().includes(q)
+      );
+      const subject = document.getElementById('markSubject').value;
+      const date    = document.getElementById('markDate').value;
+      renderMarkGrid(filtered, subject, date);
+    }
+
+    function renderMarkGrid(students, subject, date) {
+      const grid = document.getElementById('markGrid');
+      if (students.length === 0) {
+        grid.innerHTML = `<div class="card"><div class="empty-state"><i class="fas fa-users"></i><h3>No students found</h3></div></div>`;
+        return;
+      }
+      grid.innerHTML = students.map(s => {
+        const isMarked = DB.isMarked(s.id, subject, date);
+        const record   = DB.getAttendance().find(r => r.studentId === s.id && r.subject === subject && r.date === date);
+        const status   = record ? record.status : null;
+        const chipCls  = status === 'present' ? 'chip-present' : status === 'absent' ? 'chip-absent' : 'chip-none';
+        const chipTxt  = status ? status : 'Not Marked';
+        const rowCls   = status ? `marked-${status}` : '';
+        return `
+          <div class="mark-row ${rowCls}" id="row-${s.id}">
+            <div class="avatar">${initials(s.name)}</div>
+            <div class="student-info">
+              <h5>${s.name}</h5>
+              <p>${s.regNo || ''} · ${s.dept} · ${s.year}</p>
+            </div>
+            <span class="status-chip ${chipCls}" id="chip-${s.id}">${chipTxt}</span>
+            <div class="att-actions">
+              ${isMarked
+                ? `<button class="btn btn-outline btn-sm" onclick="editFromGrid('${s.id}','${subject}','${date}')"><i class="fas fa-edit"></i> Edit</button>`
+                : `<button class="btn btn-success btn-sm" onclick="quickMark('${s.id}','present','${subject}','${date}')"><i class="fas fa-check"></i> Present</button>
+                   <button class="btn btn-danger btn-sm" onclick="quickMark('${s.id}','absent','${subject}','${date}')"><i class="fas fa-times"></i> Absent</button>`
+              }
+            </div>
+          </div>`;
+      }).join('');
+    }
+
+    function quickMark(studentId, status, subject, date) {
+      const result = DB.markAttendance({ studentId, subject, date, status, markedBy: user.id });
+      if (!result.success) { Toast.error('Error', result.error); return; }
+      Toast.success('Attendance Saved', `Marked as ${status} for ${result.record.studentName}`);
+      refreshMarkList();
+      loadDashboard();
+    }
+
+    function markAll(status) {
+      const subject = document.getElementById('markSubject').value;
+      const date    = document.getElementById('markDate').value;
+      if (!subject) { Toast.warning('Select Subject', 'Please select a subject first.'); return; }
+      let count = 0;
+      _markStudents.forEach(s => {
+        if (!DB.isMarked(s.id, subject, date)) {
+          DB.markAttendance({ studentId: s.id, subject, date, status, markedBy: user.id });
+          count++;
+        }
+      });
+      if (count === 0) { Toast.info('Already Marked', 'All students are already marked.'); }
+      else { Toast.success('Bulk Mark Done', `${count} students marked as ${status}.`); }
+      refreshMarkList();
+      loadDashboard();
+    }
+
+    function editFromGrid(studentId, subject, date) {
+      const record = DB.getAttendance().find(r => r.studentId === studentId && r.subject === subject && r.date === date);
+      if (!record) return;
+      document.getElementById('editRecordId').value = record.id;
+      document.getElementById('editStudentName').textContent = record.studentName;
+      document.getElementById('editDate').value = formatDate(record.date);
+      document.getElementById('editSubject').value = record.subject;
+      document.getElementById('editStatus').value = record.status;
+      Modal.open('editModal');
+    }
+
+    function saveEdit() {
+      const id = document.getElementById('editRecordId').value;
+      const status = document.getElementById('editStatus').value;
+      DB.updateAttendance(id, status);
+      Toast.success('Updated', 'Attendance record updated successfully.');
+      Modal.close('editModal');
+      refreshMarkList();
+      loadDashboard();
+      renderReport();
+    }
+
+    // ── Student List ──────────────────────────────────
+    function renderStudentList() {
+      studentPage = 1;
+      const dept = document.getElementById('studentDeptFilter').value;
+      const q    = document.getElementById('studentSearch').value.toLowerCase();
+      allStudents = DB.getStudents().filter(s =>
+        (!dept || s.dept === dept) &&
+        (!q || s.name.toLowerCase().includes(q) || (s.regNo||'').toLowerCase().includes(q) || s.dept.toLowerCase().includes(q))
+      );
+      renderStudentPage();
+    }
+
+    function renderStudentPage() {
+      const total = allStudents.length;
+      const start = (studentPage - 1) * PAGE_SIZE;
+      const page  = allStudents.slice(start, start + PAGE_SIZE);
+
+      document.getElementById('studentListInfo').textContent = `Showing ${start+1}–${Math.min(start+PAGE_SIZE, total)} of ${total} students`;
+
+      const tbody = document.getElementById('studentListBody');
+      tbody.innerHTML = page.length === 0
+        ? `<tr><td colspan="7"><div class="empty-state" style="padding:30px"><i class="fas fa-users"></i><h3>No students found</h3></div></td></tr>`
+        : page.map((s, i) => {
+          const st = DB.computeStats(s.id);
+          const cls = pctClass(st.overall.pct);
+          return `
+            <tr>
+              <td class="text-muted text-xs">${start+i+1}</td>
+              <td><div class="flex items-center gap-2"><div class="avatar">${initials(s.name)}</div><div><div class="font-semibold">${s.name}</div><div class="text-xs text-muted">${s.username}</div></div></div></td>
+              <td><span class="badge badge-primary">${s.regNo||'—'}</span></td>
+              <td class="text-sm">${s.dept}</td>
+              <td class="text-sm">${s.year}</td>
+              <td>
+                <div class="flex items-center gap-2">
+                  <span class="font-bold ${cls === 'high' ? 'text-success' : cls === 'mid' ? '' : 'text-danger'}">${st.overall.pct}%</span>
+                  ${st.overall.pct < 75 && st.overall.total > 0 ? '<span class="badge badge-danger">Low</span>' : ''}
+                </div>
+              </td>
+              <td><button class="btn btn-outline btn-sm" onclick="viewStudentDetail('${s.id}')"><i class="fas fa-eye"></i> View</button></td>
+            </tr>`;
+        }).join('');
+
+      // Pagination
+      const pages = Math.ceil(total / PAGE_SIZE);
+      const pEl = document.getElementById('studentPagination');
+      pEl.innerHTML = '';
+      for (let p = 1; p <= pages; p++) {
+        const btn = document.createElement('button');
+        btn.className = `page-btn${p === studentPage ? ' active' : ''}`;
+        btn.textContent = p;
+        btn.onclick = () => { studentPage = p; renderStudentPage(); };
+        pEl.appendChild(btn);
+      }
+    }
+
+    function viewStudentDetail(studentId) {
+      const s  = DB.getUserById(studentId);
+      const st = DB.computeStats(studentId);
+      const { overall, bySubject } = st;
+      const cls = pctClass(overall.pct);
+
+      document.getElementById('detailStudentTitle').textContent = s.name;
+      document.getElementById('studentDetailBody').innerHTML = `
+        <div class="profile-header" style="margin-bottom:20px;padding:20px">
+          <div class="profile-avatar-lg" style="width:56px;height:56px;font-size:1.5rem">${initials(s.name)}</div>
+          <div class="profile-info">
+            <h2 style="font-size:1.2rem">${s.name}</h2>
+            <p>${s.dept} · ${s.year}</p>
+            <span class="profile-badge">${s.regNo||'—'}</span>
+          </div>
+        </div>
+        <div class="flex gap-4 mb-4" style="flex-wrap:wrap">
+          <div class="report-mini-card" style="flex:1;min-width:100px">
+            <div class="val ${cls === 'high' ? 'text-success' : cls === 'low' ? 'text-danger' : ''}">${overall.pct}%</div>
+            <div class="text-xs text-muted">Overall</div>
+          </div>
+          <div class="report-mini-card" style="flex:1;min-width:100px">
+            <div class="val text-success">${overall.present}</div>
+            <div class="text-xs text-muted">Present</div>
+          </div>
+          <div class="report-mini-card" style="flex:1;min-width:100px">
+            <div class="val text-danger">${overall.absent}</div>
+            <div class="text-xs text-muted">Absent</div>
+          </div>
+        </div>
+        ${Object.keys(bySubject).map(subj => {
+          const sub = bySubject[subj];
+          const sc = pctClass(sub.pct);
+          return `<div class="subject-row">
+            <div class="subject-row-header"><span class="subject-name">${subj}</span><span class="subject-pct ${sc}">${sub.pct}%</span></div>
+            <div class="progress mt-1"><div class="progress-bar ${sc}" style="width:${sub.pct}%"></div></div>
+            <div class="flex gap-3 mt-1"><span class="text-xs text-muted">${sub.present}P / ${sub.absent}A</span></div>
+          </div>`;
+        }).join('') || '<p class="text-muted text-sm">No attendance records yet.</p>'}`;
+
+      Modal.open('studentDetailModal');
+    }
+
+    function exportStudentCSV() {
+      const data = DB.getStudents().map(s => {
+        const st = DB.computeStats(s.id);
+        return { Name: s.name, RegNo: s.regNo, Dept: s.dept, Year: s.year, 'Overall%': st.overall.pct, Present: st.overall.present, Absent: st.overall.absent };
+      });
+      exportCSV(data, 'students_report');
+    }
+
+    // ── Reports ───────────────────────────────────────
+    function renderReport() {
+      const dept    = document.getElementById('repDept').value;
+      const subject = document.getElementById('repSubject').value;
+      const status  = document.getElementById('repStatus').value;
+      const from    = document.getElementById('repFrom').value;
+      const to      = document.getElementById('repTo').value;
+
+      allReportRecords = DB.getAttendance().filter(r =>
+        (!dept    || r.dept === dept) &&
+        (!subject || r.subject === subject) &&
+        (!status  || r.status === status) &&
+        (!from    || r.date >= from) &&
+        (!to      || r.date <= to)
+      ).sort((a,b) => b.date.localeCompare(a.date));
+
+      // Summary
+      const total   = allReportRecords.length;
+      const present = allReportRecords.filter(r => r.status === 'present').length;
+      const absent  = total - present;
+      const pct     = total ? Math.round(present/total*100) : 0;
+      document.getElementById('reportSummaryGrid').innerHTML = `
+        <div class="report-mini-card"><div class="val">${total}</div><div class="text-xs text-muted">Total Records</div></div>
+        <div class="report-mini-card"><div class="val text-success">${present}</div><div class="text-xs text-muted">Present</div></div>
+        <div class="report-mini-card"><div class="val text-danger">${absent}</div><div class="text-xs text-muted">Absent</div></div>
+        <div class="report-mini-card"><div class="val ${pctClass(pct) === 'high' ? 'text-success' : pctClass(pct) === 'low' ? 'text-danger' : ''}">${pct}%</div><div class="text-xs text-muted">Attendance Rate</div></div>`;
+
+      reportPage = 1;
+      renderReportPage();
+    }
+
+    function renderReportPage() {
+      const total = allReportRecords.length;
+      const start = (reportPage - 1) * PAGE_SIZE;
+      const page  = allReportRecords.slice(start, start + PAGE_SIZE);
+
+      document.getElementById('reportInfo').textContent = `Showing ${start+1}–${Math.min(start+PAGE_SIZE, total)} of ${total} records`;
+
+      const tbody = document.getElementById('reportTableBody');
+      tbody.innerHTML = page.length === 0
+        ? `<tr><td colspan="9"><div class="empty-state" style="padding:30px"><i class="fas fa-chart-bar"></i><h3>No records found</h3></div></td></tr>`
+        : page.map((r,i) => `
+          <tr>
+            <td class="text-xs text-muted">${start+i+1}</td>
+            <td><div class="flex items-center gap-2"><div class="avatar">${initials(r.studentName)}</div><span class="font-semibold">${r.studentName}</span></div></td>
+            <td><span class="badge badge-primary">${r.regNo||'—'}</span></td>
+            <td class="text-sm">${r.dept}</td>
+            <td class="text-sm">${r.subject}</td>
+            <td class="text-muted text-sm">${formatDate(r.date)}</td>
+            <td class="text-muted text-sm">${r.time}</td>
+            <td><span class="badge ${r.status === 'present' ? 'badge-success' : 'badge-danger'}">${r.status}</span></td>
+            <td>
+              <button class="btn btn-outline btn-sm" onclick="openEditById('${r.id}')"><i class="fas fa-edit"></i></button>
+              <button class="btn btn-danger btn-sm" onclick="deleteRecord('${r.id}')" style="margin-left:4px"><i class="fas fa-trash"></i></button>
+            </td>
+          </tr>`).join('');
+
+      const pages = Math.ceil(total / PAGE_SIZE);
+      const pEl = document.getElementById('reportPagination');
+      pEl.innerHTML = '';
+      for (let p = 1; p <= pages; p++) {
+        const btn = document.createElement('button');
+        btn.className = `page-btn${p === reportPage ? ' active' : ''}`;
+        btn.textContent = p;
+        btn.onclick = () => { reportPage = p; renderReportPage(); };
+        pEl.appendChild(btn);
+      }
+    }
+
+    function openEditById(id) {
+      const record = DB.getAttendance().find(r => r.id === id);
+      if (!record) return;
+      document.getElementById('editRecordId').value = record.id;
+      document.getElementById('editStudentName').textContent = record.studentName;
+      document.getElementById('editDate').value = formatDate(record.date);
+      document.getElementById('editSubject').value = record.subject;
+      document.getElementById('editStatus').value = record.status;
+      Modal.open('editModal');
+    }
+
+    function deleteRecord(id) {
+      if (!confirm('Are you sure you want to delete this record?')) return;
+      DB.deleteAttendance(id);
+      Toast.success('Deleted', 'Attendance record removed.');
+      renderReport();
+      loadDashboard();
+    }
+
+    function exportReportCSV() {
+      const data = allReportRecords.map(r => ({
+        Student: r.studentName, RegNo: r.regNo, Dept: r.dept, Subject: r.subject,
+        Date: r.date, Time: r.time, Status: r.status
+      }));
+      exportCSV(data, 'attendance_report');
+    }
+
+    // ── Profile ───────────────────────────────────────
+    function loadProfile() {
+      document.getElementById('staffProfileAvatar').textContent = initials(user.name);
+      document.getElementById('staffProfileName').textContent   = user.name;
+      document.getElementById('staffProfileDept').textContent   = user.dept;
+      document.getElementById('spName').textContent     = user.name;
+      document.getElementById('spStaffId').textContent  = user.staffId || '—';
+      document.getElementById('spDept').textContent     = user.dept;
+      document.getElementById('spUsername').textContent = user.username;
+      document.getElementById('spJoined').textContent   = new Date(user.createdAt).toLocaleDateString('en-IN', { day:'2-digit', month:'short', year:'numeric' });
+
+      const subjects = user.subjects || [];
+      document.getElementById('staffSubjectList').innerHTML = subjects.length === 0
+        ? '<p class="text-muted text-sm">No subjects assigned.</p>'
+        : subjects.map(s => `<div class="badge badge-primary" style="margin:4px;font-size:0.8rem">${s}</div>`).join('');
+    }
+
+    function logout() {
+      DB.clearSession();
+      Clock.stop();
+      window.location.href = 'index.html';
+    }
+  </script>
+</body>
+</html>
