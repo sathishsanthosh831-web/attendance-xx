@@ -1,0 +1,500 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Student Dashboard — EduTrack</title>
+  <meta name="description" content="Student attendance dashboard — view your attendance percentage, subject-wise records and more." />
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" />
+  <link rel="stylesheet" href="css/style.css" />
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.2/dist/chart.umd.min.js"></script>
+  <style>
+    .doughnut-wrap { position:relative; max-width:220px; margin:0 auto; }
+    .doughnut-center { position:absolute; top:50%; left:50%; transform:translate(-50%,-50%); text-align:center; pointer-events:none; }
+    .doughnut-center .big-pct { font-size:2rem; font-weight:800; font-family:'Poppins',sans-serif; }
+    .doughnut-center .big-label { font-size:0.7rem; color:var(--text-muted); text-transform:uppercase; letter-spacing:0.06em; }
+    .chart-legend { display:flex; justify-content:center; gap:20px; margin-top:12px; }
+    .legend-dot { width:10px; height:10px; border-radius:50%; display:inline-block; margin-right:5px; }
+    .legend-item { font-size:0.8rem; color:var(--text-muted); display:flex; align-items:center; }
+    .att-calendar { display:grid; grid-template-columns:repeat(7,1fr); gap:4px; }
+    .att-day { aspect-ratio:1; border-radius:4px; display:flex; align-items:center; justify-content:center; font-size:0.65rem; font-weight:600; cursor:default; }
+    .att-day.present { background:rgba(16,185,129,0.2); color:#059669; }
+    .att-day.absent  { background:rgba(239,68,68,0.15); color:#dc2626; }
+    .att-day.empty   { background:transparent; }
+    .att-day.header  { color:var(--text-muted); font-size:0.65rem; font-weight:700; }
+    .nav-badge { background:var(--danger); color:#fff; font-size:0.65rem; padding:1px 6px; border-radius:99px; margin-left:auto; font-weight:700; }
+  </style>
+</head>
+<body>
+  <div class="app-layout">
+
+    <!-- Sidebar Overlay -->
+    <div class="sidebar-overlay" id="sidebarOverlay"></div>
+
+    <!-- Sidebar -->
+    <aside class="sidebar" id="sidebar">
+      <div class="sidebar-brand">
+        <svg width="38" height="38" viewBox="0 0 52 52" fill="none" xmlns="http://www.w3.org/2000/svg" style="border-radius:8px;background:rgba(255,255,255,0.1);padding:5px;flex-shrink:0">
+          <path d="M26 8L44 17V26C44 35.4 36 43.2 26 46C16 43.2 8 35.4 8 26V17L26 8Z" fill="rgba(255,255,255,0.9)"/>
+          <path d="M26 14L38 20.5V26C38 32.6 32.8 38.6 26 40.8C19.2 38.6 14 32.6 14 26V20.5L26 14Z" fill="#4f46e5"/>
+          <path d="M19 24H33M22 24V32M30 24V32" stroke="white" stroke-width="2" stroke-linecap="round"/>
+          <path d="M21 22H31L26 18L21 22Z" fill="white"/>
+        </svg>
+        <div class="sidebar-brand-text">
+          <h3>EduTrack</h3>
+          <p>Student Portal</p>
+        </div>
+      </div>
+
+      <nav class="sidebar-nav">
+        <div class="nav-section">
+          <div class="nav-section-title">Main</div>
+          <div class="nav-item active" data-page="dashboard">
+            <i class="fas fa-th-large"></i><span>Dashboard</span>
+          </div>
+          <div class="nav-item" data-page="attendance">
+            <i class="fas fa-calendar-check"></i><span>My Attendance</span>
+            <span class="nav-badge" id="navWarningBadge" style="display:none">!</span>
+          </div>
+          <div class="nav-item" data-page="subjects">
+            <i class="fas fa-book-open"></i><span>Subject Reports</span>
+          </div>
+        </div>
+        <div class="nav-section">
+          <div class="nav-section-title">Account</div>
+          <div class="nav-item" data-page="profile">
+            <i class="fas fa-user-circle"></i><span>My Profile</span>
+          </div>
+        </div>
+      </nav>
+
+      <div class="sidebar-footer">
+        <div class="sidebar-user" onclick="logout()">
+          <div class="sidebar-avatar" id="sidebarAvatar">A</div>
+          <div class="sidebar-user-info">
+            <h5 id="sidebarName">Student Name</h5>
+            <p id="sidebarRole">Student</p>
+          </div>
+          <i class="fas fa-sign-out-alt" style="color:var(--sidebar-text);font-size:0.875rem"></i>
+        </div>
+      </div>
+    </aside>
+
+    <!-- Main Content -->
+    <main class="main-content">
+      <!-- Topbar -->
+      <header class="topbar">
+        <div class="topbar-left">
+          <button class="hamburger" id="hamburger"><i class="fas fa-bars"></i></button>
+          <span class="topbar-title" id="topbarTitle">Dashboard</span>
+        </div>
+        <div class="topbar-right">
+          <div class="clock-widget" id="clockWidget"><strong>Loading...</strong></div>
+          <button class="theme-toggle" id="themeToggle" title="Toggle theme"><i class="fas fa-moon"></i></button>
+        </div>
+      </header>
+
+      <!-- ═══════════════════════ DASHBOARD ═══════════════════════ -->
+      <div class="page-section page-content" id="section-dashboard">
+        <div class="page-header">
+          <h1 id="welcomeHeading">Welcome back! 👋</h1>
+          <p id="welcomeSub">Here's your attendance overview</p>
+        </div>
+
+        <!-- Warning Banner -->
+        <div class="warning-banner mb-6" id="lowAttWarning" style="display:none">
+          <i class="fas fa-exclamation-triangle"></i>
+          <div>
+            <strong>Low Attendance Warning!</strong>
+            Your overall attendance is below 75%. Please attend more classes to avoid academic penalties.
+          </div>
+        </div>
+
+        <!-- Stat Cards -->
+        <div class="stat-grid fade-in-up">
+          <div class="stat-card" style="--card-color:#4f46e5">
+            <div class="stat-icon"><i class="fas fa-percent"></i></div>
+            <div class="stat-value" id="statPct">—</div>
+            <div class="stat-label">Overall Attendance</div>
+          </div>
+          <div class="stat-card" style="--card-color:#10b981">
+            <div class="stat-icon"><i class="fas fa-check-circle"></i></div>
+            <div class="stat-value" id="statPresent">—</div>
+            <div class="stat-label">Days Present</div>
+          </div>
+          <div class="stat-card" style="--card-color:#ef4444">
+            <div class="stat-icon"><i class="fas fa-times-circle"></i></div>
+            <div class="stat-value" id="statAbsent">—</div>
+            <div class="stat-label">Days Absent</div>
+          </div>
+          <div class="stat-card" style="--card-color:#f59e0b">
+            <div class="stat-icon"><i class="fas fa-book"></i></div>
+            <div class="stat-value" id="statSubjects">—</div>
+            <div class="stat-label">Subjects Tracked</div>
+          </div>
+        </div>
+
+        <!-- Charts Row -->
+        <div class="content-grid delay-1 fade-in-up">
+          <!-- Doughnut -->
+          <div class="card">
+            <div class="card-header">
+              <h3>Overall Attendance</h3>
+              <span class="badge badge-info" id="overallBadge">—%</span>
+            </div>
+            <div class="card-body">
+              <div class="doughnut-wrap">
+                <canvas id="doughnutChart" height="220"></canvas>
+                <div class="doughnut-center">
+                  <div class="big-pct" id="doughnutPct">—</div>
+                  <div class="big-label">Overall</div>
+                </div>
+              </div>
+              <div class="chart-legend">
+                <div class="legend-item"><span class="legend-dot" style="background:#10b981"></span>Present</div>
+                <div class="legend-item"><span class="legend-dot" style="background:#ef4444"></span>Absent</div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Bar Chart -->
+          <div class="card">
+            <div class="card-header">
+              <h3>Subject-wise Attendance</h3>
+            </div>
+            <div class="card-body">
+              <canvas id="barChart" height="220"></canvas>
+            </div>
+          </div>
+        </div>
+
+        <!-- Subject Breakdown -->
+        <div class="card fade-in-up delay-2">
+          <div class="card-header">
+            <h3>Subject Breakdown</h3>
+            <span class="text-muted text-sm" id="subBreakdownTotal"></span>
+          </div>
+          <div class="card-body" id="subjectBreakdown">
+            <div class="empty-state"><i class="fas fa-book-open"></i><h3>No records yet</h3><p>Your attendance will appear here once marked by your staff.</p></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ═══════════════════════ MY ATTENDANCE ═══════════════════════ -->
+      <div class="page-section page-content hidden" id="section-attendance">
+        <div class="page-header flex justify-between items-center" style="flex-wrap:wrap;gap:12px">
+          <div><h1>My Attendance Records</h1><p>Detailed log of all your attendance entries</p></div>
+          <div class="flex gap-2">
+            <button class="btn btn-outline btn-sm" onclick="exportMyCSV()"><i class="fas fa-file-csv"></i> Export CSV</button>
+            <button class="btn btn-outline btn-sm" onclick="exportPDF()"><i class="fas fa-print"></i> Print</button>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-header">
+            <h3>Attendance Log</h3>
+            <div class="search-bar" style="width:220px">
+              <i class="fas fa-search"></i>
+              <input type="text" class="form-control" id="attSearch" placeholder="Search subject..." oninput="filterAttTable()" />
+            </div>
+          </div>
+          <div class="card-body" style="padding:0">
+            <div class="table-wrapper">
+              <table class="table" id="attTable">
+                <thead>
+                  <tr>
+                    <th>#</th><th>Date</th><th>Subject</th><th>Time</th><th>Status</th>
+                  </tr>
+                </thead>
+                <tbody id="attTableBody">
+                  <tr><td colspan="5"><div class="empty-state"><i class="fas fa-calendar-times"></i><h3>No records</h3><p>No attendance data found.</p></div></td></tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ═══════════════════════ SUBJECT REPORTS ═══════════════════════ -->
+      <div class="page-section page-content hidden" id="section-subjects">
+        <div class="page-header">
+          <h1>Subject-wise Reports</h1>
+          <p>Detailed breakdown per subject</p>
+        </div>
+        <div id="subjectReportGrid" class="stat-grid"></div>
+      </div>
+
+      <!-- ═══════════════════════ PROFILE ═══════════════════════ -->
+      <div class="page-section page-content hidden" id="section-profile">
+        <div class="page-header">
+          <h1>My Profile</h1>
+          <p>Your account information</p>
+        </div>
+        <div class="profile-header">
+          <div class="profile-avatar-lg" id="profileAvatar">A</div>
+          <div class="profile-info">
+            <h2 id="profileName">Name</h2>
+            <p id="profileDept">Department</p>
+            <div class="profile-badge" id="profileYear">Year</div>
+          </div>
+        </div>
+        <div class="content-grid">
+          <div class="card">
+            <div class="card-header"><h3>Personal Details</h3></div>
+            <div class="card-body">
+              <table class="table">
+                <tbody>
+                  <tr><td class="text-muted text-sm" style="width:40%">Full Name</td><td id="pName" class="font-semibold">—</td></tr>
+                  <tr><td class="text-muted text-sm">Register No.</td><td id="pRegNo" class="font-semibold">—</td></tr>
+                  <tr><td class="text-muted text-sm">Department</td><td id="pDept" class="font-semibold">—</td></tr>
+                  <tr><td class="text-muted text-sm">Year</td><td id="pYear" class="font-semibold">—</td></tr>
+                  <tr><td class="text-muted text-sm">Username</td><td id="pUsername" class="font-semibold">—</td></tr>
+                  <tr><td class="text-muted text-sm">Member Since</td><td id="pJoined" class="font-semibold">—</td></tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+          <div class="card">
+            <div class="card-header"><h3>Attendance Summary</h3></div>
+            <div class="card-body" id="profileAttSummary"></div>
+          </div>
+        </div>
+      </div>
+    </main>
+  </div>
+
+  <script src="js/data.js"></script>
+  <script src="js/utils.js"></script>
+  <script>
+    // Auth check
+    const user = requireAuth('student');
+    let doughnutChartInst = null;
+    let barChartInst = null;
+
+    // Init
+    Theme.init();
+    Toast.init();
+    Sidebar.init();
+    Clock.start(document.getElementById('clockWidget'));
+    initSidebarNav('dashboard');
+
+    // Fill sidebar user
+    document.getElementById('sidebarAvatar').textContent = initials(user.name);
+    document.getElementById('sidebarName').textContent = user.name;
+    document.getElementById('sidebarRole').textContent = `${user.dept} · ${user.year}`;
+
+    // Welcome
+    document.getElementById('welcomeHeading').textContent = `Welcome back, ${user.name.split(' ')[0]}! 👋`;
+    document.getElementById('welcomeSub').textContent = `${user.dept} · ${user.year} · Reg: ${user.regNo}`;
+
+    // Load all data
+    const stats = DB.computeStats(user.id);
+    loadDashboard(stats);
+    loadAttendanceTable();
+    loadSubjectReports(stats);
+    loadProfile();
+
+    // ── Dashboard ────────────────────────────────────
+    function loadDashboard(stats) {
+      const { overall, bySubject } = stats;
+
+      // Stat cards
+      document.getElementById('statPct').textContent     = overall.pct + '%';
+      document.getElementById('statPresent').textContent = overall.present;
+      document.getElementById('statAbsent').textContent  = overall.absent;
+      document.getElementById('statSubjects').textContent = Object.keys(bySubject).length;
+      document.getElementById('overallBadge').textContent = overall.pct + '%';
+      document.getElementById('doughnutPct').textContent  = overall.pct + '%';
+
+      // Low attendance warning
+      if (overall.total > 0 && overall.pct < 75) {
+        document.getElementById('lowAttWarning').style.display = 'flex';
+        document.getElementById('navWarningBadge').style.display = 'inline';
+      }
+
+      // Doughnut chart
+      const isDark = Theme.get() === 'dark';
+      const gridColor = isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.06)';
+      const textColor = isDark ? '#94a3b8' : '#64748b';
+
+      if (doughnutChartInst) doughnutChartInst.destroy();
+      const dCtx = document.getElementById('doughnutChart').getContext('2d');
+      doughnutChartInst = new Chart(dCtx, {
+        type: 'doughnut',
+        data: {
+          labels: ['Present', 'Absent'],
+          datasets: [{ data: [overall.present || 0, overall.absent || 0],
+            backgroundColor: ['#10b981', '#ef4444'],
+            borderWidth: 0, borderRadius: 4, hoverOffset: 4 }]
+        },
+        options: {
+          responsive: true, maintainAspectRatio: false,
+          cutout: '72%',
+          plugins: { legend: { display: false }, tooltip: {
+            callbacks: { label: ctx => ` ${ctx.label}: ${ctx.raw} days` }
+          }}
+        }
+      });
+
+      // Bar chart
+      const subjects = Object.keys(bySubject);
+      const pcts = subjects.map(s => bySubject[s].pct);
+      const colors = pcts.map(p => p >= 75 ? 'rgba(16,185,129,0.8)' : p >= 50 ? 'rgba(245,158,11,0.8)' : 'rgba(239,68,68,0.8)');
+
+      if (barChartInst) barChartInst.destroy();
+      const bCtx = document.getElementById('barChart').getContext('2d');
+      barChartInst = new Chart(bCtx, {
+        type: 'bar',
+        data: {
+          labels: subjects.map(s => s.length > 14 ? s.slice(0,12)+'…' : s),
+          datasets: [{ label: 'Attendance %', data: pcts, backgroundColor: colors, borderRadius: 6, borderSkipped: false }]
+        },
+        options: {
+          responsive: true, maintainAspectRatio: false,
+          plugins: { legend: { display: false }, tooltip: {
+            callbacks: { label: ctx => ` ${ctx.raw}%` }
+          }},
+          scales: {
+            y: { beginAtZero: true, max: 100, grid: { color: gridColor }, ticks: { color: textColor, callback: v => v+'%' } },
+            x: { grid: { display: false }, ticks: { color: textColor } }
+          }
+        }
+      });
+
+      // Subject breakdown list
+      const container = document.getElementById('subjectBreakdown');
+      if (subjects.length === 0) {
+        container.innerHTML = `<div class="empty-state"><i class="fas fa-book-open"></i><h3>No records yet</h3><p>Your attendance will appear here once marked by staff.</p></div>`;
+        return;
+      }
+      document.getElementById('subBreakdownTotal').textContent = `${overall.total} total classes`;
+      container.innerHTML = subjects.map(subj => {
+        const s = bySubject[subj];
+        const cls = pctClass(s.pct);
+        const progressCls = cls === 'high' ? 'high' : cls === 'mid' ? 'mid' : 'low';
+        return `
+          <div class="subject-row">
+            <div class="subject-row-header">
+              <span class="subject-name">${subj}</span>
+              <span class="subject-pct ${cls}">${s.pct}%</span>
+            </div>
+            <div class="progress"><div class="progress-bar ${progressCls}" style="width:${s.pct}%"></div></div>
+            <div class="flex gap-3 mt-2">
+              <span class="text-xs text-muted"><i class="fas fa-check text-success"></i> ${s.present} Present</span>
+              <span class="text-xs text-muted"><i class="fas fa-times text-danger"></i> ${s.absent} Absent</span>
+              <span class="text-xs text-muted">${s.total} Total</span>
+            </div>
+          </div>`;
+      }).join('');
+    }
+
+    // ── Attendance Table ──────────────────────────────
+    function loadAttendanceTable() {
+      const records = DB.getStudentAttendance(user.id).sort((a,b) => b.date.localeCompare(a.date));
+      renderAttTable(records);
+    }
+
+    let _attRecords = [];
+    function renderAttTable(records) {
+      _attRecords = records;
+      const tbody = document.getElementById('attTableBody');
+      if (records.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="5"><div class="empty-state"><i class="fas fa-calendar-times"></i><h3>No records</h3><p>No attendance data found.</p></div></td></tr>`;
+        return;
+      }
+      tbody.innerHTML = records.map((r,i) => `
+        <tr>
+          <td class="text-muted text-xs">${i+1}</td>
+          <td><span class="font-semibold">${formatDate(r.date)}</span></td>
+          <td>${r.subject}</td>
+          <td class="text-muted text-sm">${r.time}</td>
+          <td>
+            <span class="badge ${r.status === 'present' ? 'badge-success' : 'badge-danger'}">
+              <i class="fas fa-${r.status === 'present' ? 'check' : 'times'}"></i> ${r.status}
+            </span>
+          </td>
+        </tr>`).join('');
+    }
+
+    function filterAttTable() {
+      const q = document.getElementById('attSearch').value.toLowerCase();
+      const filtered = DB.getStudentAttendance(user.id)
+        .sort((a,b) => b.date.localeCompare(a.date))
+        .filter(r => r.subject.toLowerCase().includes(q) || r.date.includes(q));
+      renderAttTable(filtered);
+    }
+
+    function exportMyCSV() {
+      const records = DB.getStudentAttendance(user.id).map(r => ({
+        Date: r.date, Subject: r.subject, Time: r.time, Status: r.status
+      }));
+      exportCSV(records, `attendance_${user.regNo}`);
+    }
+
+    // ── Subject Reports ───────────────────────────────
+    function loadSubjectReports(stats) {
+      const { bySubject } = stats;
+      const grid = document.getElementById('subjectReportGrid');
+      const subjects = Object.keys(bySubject);
+      if (subjects.length === 0) {
+        grid.innerHTML = `<div class="card" style="grid-column:1/-1"><div class="empty-state"><i class="fas fa-book-open"></i><h3>No subject data yet</h3></div></div>`;
+        return;
+      }
+      grid.innerHTML = subjects.map(subj => {
+        const s = bySubject[subj];
+        const cls = pctClass(s.pct);
+        const cardColor = cls === 'high' ? '#10b981' : cls === 'mid' ? '#f59e0b' : '#ef4444';
+        return `
+          <div class="stat-card" style="--card-color:${cardColor}">
+            <div class="stat-icon"><i class="fas fa-book"></i></div>
+            <div class="stat-value ${cls === 'high' ? 'text-success' : cls === 'mid' ? '' : 'text-danger'}">${s.pct}%</div>
+            <div class="stat-label">${subj}</div>
+            <div class="progress mt-3"><div class="progress-bar ${cls === 'high' ? 'high' : cls === 'mid' ? 'mid' : 'low'}" style="width:${s.pct}%"></div></div>
+            <div class="flex gap-3 mt-2">
+              <span class="text-xs text-muted"><i class="fas fa-check text-success"></i> ${s.present}</span>
+              <span class="text-xs text-muted"><i class="fas fa-times text-danger"></i> ${s.absent}</span>
+              <span class="text-xs text-muted">${s.total} classes</span>
+            </div>
+            ${s.pct < 75 ? `<div class="badge badge-danger mt-2"><i class="fas fa-exclamation-triangle"></i> Low attendance</div>` : ''}
+          </div>`;
+      }).join('');
+    }
+
+    // ── Profile ───────────────────────────────────────
+    function loadProfile() {
+      document.getElementById('profileAvatar').textContent = initials(user.name);
+      document.getElementById('profileName').textContent   = user.name;
+      document.getElementById('profileDept').textContent   = user.dept;
+      document.getElementById('profileYear').textContent   = user.year;
+      document.getElementById('pName').textContent     = user.name;
+      document.getElementById('pRegNo').textContent    = user.regNo;
+      document.getElementById('pDept').textContent     = user.dept;
+      document.getElementById('pYear').textContent     = user.year;
+      document.getElementById('pUsername').textContent = user.username;
+      document.getElementById('pJoined').textContent   = new Date(user.createdAt).toLocaleDateString('en-IN', { day:'2-digit', month:'short', year:'numeric' });
+
+      const stats = DB.computeStats(user.id);
+      const { overall } = stats;
+      const cls = pctClass(overall.pct);
+      document.getElementById('profileAttSummary').innerHTML = `
+        <div class="text-center mb-4">
+          <div style="font-size:2.5rem;font-weight:800;font-family:'Poppins',sans-serif;color:${cls === 'high' ? 'var(--success)' : cls === 'mid' ? 'var(--warning)' : 'var(--danger)'}">${overall.pct}%</div>
+          <div class="text-muted text-sm">Overall Attendance</div>
+        </div>
+        <div class="progress mb-4"><div class="progress-bar ${cls}" style="width:${overall.pct}%"></div></div>
+        <div class="flex justify-between">
+          <div class="text-center"><div class="font-bold text-success">${overall.present}</div><div class="text-xs text-muted">Present</div></div>
+          <div class="text-center"><div class="font-bold text-danger">${overall.absent}</div><div class="text-xs text-muted">Absent</div></div>
+          <div class="text-center"><div class="font-bold">${overall.total}</div><div class="text-xs text-muted">Total</div></div>
+        </div>
+        ${overall.pct < 75 && overall.total > 0 ? `<div class="warning-banner mt-4"><i class="fas fa-exclamation-triangle"></i><span>Attendance below 75%!</span></div>` : ''}`;
+    }
+
+    function logout() {
+      DB.clearSession();
+      Clock.stop();
+      window.location.href = 'index.html';
+    }
+  </script>
+</body>
+</html>
